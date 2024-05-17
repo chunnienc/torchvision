@@ -386,12 +386,13 @@ class CorrBlock(nn.Module):
 
         batch_size, h, w, num_channels, _, _ = corr_volume.shape  # _, _ = h, w
         corr_volume = corr_volume.reshape(batch_size * h * w, num_channels, h, w)
-        self.corr_pyramid = [corr_volume]
+        corr_pyramid = [corr_volume]
         for _ in range(self.num_levels - 1):
             corr_volume = F.avg_pool2d(corr_volume, kernel_size=2, stride=2)
-            self.corr_pyramid.append(corr_volume)
+            corr_pyramid.append(corr_volume)
+        return corr_pyramid
 
-    def index_pyramid(self, centroids_coords):
+    def index_pyramid(self, centroids_coords, corr_pyramid):
         """Return correlation features by indexing from the pyramid."""
         neighborhood_side_len = 2 * self.radius + 1  # see note in __init__ about out_channels
         di = torch.linspace(-self.radius, self.radius, neighborhood_side_len)
@@ -403,7 +404,7 @@ class CorrBlock(nn.Module):
         centroids_coords = centroids_coords.permute(0, 2, 3, 1).reshape(batch_size * h * w, 1, 1, 2)
 
         indexed_pyramid = []
-        for corr_volume in self.corr_pyramid:
+        for corr_volume in corr_pyramid:
             sampling_coords = centroids_coords + delta  # end shape is (batch_size * h * w, side_len, side_len, 2)
             indexed_corr_volume = grid_sample(corr_volume, sampling_coords, align_corners=True, mode="bilinear").view(
                 batch_size, h, w, -1
@@ -494,7 +495,7 @@ class RAFT(nn.Module):
         if fmap1.shape[-2:] != (h // 8, w // 8):
             raise ValueError("The feature encoder should downsample H and W by 8")
 
-        self.corr_block.build_pyramid(fmap1, fmap2)
+        corr_pyramid = self.corr_block.build_pyramid(fmap1, fmap2)
 
         context_out = self.context_encoder(image1)
         if context_out.shape[-2:] != (h // 8, w // 8):
@@ -519,7 +520,7 @@ class RAFT(nn.Module):
         flow_predictions = []
         for _ in range(num_flow_updates):
             coords1 = coords1.detach()  # Don't backpropagate gradients through this branch, see paper
-            corr_features = self.corr_block.index_pyramid(centroids_coords=coords1)
+            corr_features = self.corr_block.index_pyramid(centroids_coords=coords1, corr_pyramid=corr_pyramid)
 
             flow = coords1 - coords0
             hidden_state, delta_flow = self.update_block(hidden_state, context, corr_features, flow)
