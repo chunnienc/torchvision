@@ -10,16 +10,21 @@ videos.
 Images
 ------
 
+Torchvision currently supports decoding JPEG, PNG, WEBP and GIF images. JPEG
+decoding can also be done on CUDA GPUs.
+
+For encoding, JPEG (cpu and CUDA) and PNG are supported.
+
 .. autosummary::
     :toctree: generated/
     :template: function.rst
 
-    read_image
     decode_image
     encode_jpeg
     decode_jpeg
     write_jpeg
     decode_gif
+    decode_webp
     encode_png
     decode_png
     write_png
@@ -32,6 +37,13 @@ Images
 
     ImageReadMode
 
+Obsolete decoding function:
+
+.. autosummary::
+    :toctree: generated/
+    :template: class.rst
+
+    read_image
 
 
 Video
